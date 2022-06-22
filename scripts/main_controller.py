@@ -1,12 +1,10 @@
 import os
 import gc
-import csv
 import time
 import numpy as np
 from sklearn.model_selection import StratifiedKFold
-from sklearn.preprocessing import LabelEncoder
-from sklearn.utils import shuffle
-import matplotlib.pyplot as plt
+from keras.callbacks import EarlyStopping
+from sklearn.metrics import precision_recall_fscore_support as get_metrics
 
 from pipeline_blocks.core_pipeline_function_wrappers import generate_unusable_data_lists
 from pipeline_blocks.core_pipeline_function_wrappers import generate_and_reduce_patient_matrix
@@ -16,9 +14,7 @@ from utils.helpers import print_num_patients_with_SC
 
 from pipeline_blocks.event_matching import print_patient_matrix
 from pipeline_blocks.model_training import get_train_and_val_data
-from pipeline_blocks.model_training import create_and_compile_model, get_binary_class_occurrences, train_and_evaluate_model, plot_model_histories, plot_average_model_history
-
-from baseline_model_functions import get_model, remove_nan_values_from_dataset, print_class_balance, cross_validation, preprocess_fft
+from pipeline_blocks.model_training import create_and_compile_model, get_binary_class_occurrences, train_and_evaluate_model, plot_model_histories, preprocess_stft, remove_nan_values_from_dataset, print_class_balance
 
 
 
@@ -179,137 +175,137 @@ if __name__ == "__main__":
     
 
 
-    start_time = time.time()
+    print('* Preparing datasets for model training...')
+    inputs, outputs = feature_extraction_data
 
-    model_type = 'SVM'
-    model = get_model(model_type)
-
-    print('Model type: ', model_type)
-
-    if fe_method == 'RAW':
-        inputs, outputs = feature_extraction_data
-        label_encoder = LabelEncoder()
-        integer_outputs = label_encoder.fit_transform(outputs)
+    if fe_method == 'STFT':
+        num_bins = 128
+        truncating_point = int(0.4 * len(inputs[0]))
+        num_ffts_in_stft = inputs[0].shape[1]
+        start_time = time.time()
+        inputs = [preprocess_stft(stft, num_bins, truncating_point, num_ffts_in_stft) for stft in inputs]
+        end_time = time.time()
+        print(f'Preprocessing STFT inputs took {end_time - start_time} seconds')
         inputs = np.asarray(inputs)
-        inputs, integer_outputs = shuffle(inputs, integer_outputs)
-        print(f'Shape of input data: {inputs.shape}')
-        print(f'Shape of output data: {integer_outputs.shape}')
-
-        if event_type == 'severities':
-            inputs_contain_nans = np.isnan(inputs).any()
-            if inputs_contain_nans:
-                print('Input data contains nan values, removing now...')
-                inputs, integer_outputs = remove_nan_values_from_dataset(inputs, integer_outputs)
-            else:
-                print('Input data does not contain nan values, all good!')
-            print_class_balance(inputs, integer_outputs)
-
-        gc.collect()
-        num_trials = 1
-        all_results = {
-            "Mean Validation Accuracy": [],
-            "Mean Validation Precision": [],
-            "Mean Validation Recall": [],
-            "Mean Validation Macro F1 Score": [],
-            "Mean Validation Weighted F1 Score": [],
-        }
-
-        for i in range(num_trials):
-            gc.collect()
-            print(f'Currently running cross validation for trial {i+1}')
-            trial_results = cross_validation(model, inputs, integer_outputs)
-            for metric_name, metric_value in trial_results.items():
-                all_results[metric_name].append(metric_value)
-
-
-        average_results = {}
-        for metric_name, metric_values in all_results.items():
-            average_metric_value = sum(metric_values) / len(metric_values)
-            average_results[metric_name] = average_metric_value
-        
-        print(f'\nAverage metrics over {num_trials} trials for a {model_type} model using {fe_method} for feature extraction:')
-        for metric_name, average_metric_value in average_results.items():
-            print(f'{metric_name}: {average_metric_value:.3f}')
-        
-        print('\n')
-        for metric_name, average_metric_value in average_results.items():
-            print(f'{average_metric_value:.3f}')
-
-
-    elif fe_method == 'FFT':
-        highest_power_of_two = 10
-        results_for_all_bins = {}
-        for power_of_two in range(2, highest_power_of_two + 1):
-            gc.collect()
-            inputs, outputs = feature_extraction_data
-            label_encoder = LabelEncoder()
-            integer_outputs = label_encoder.fit_transform(outputs)
-
-            truncating_point = int(0.4 * len(inputs[0]))
-            num_bins = 2 ** power_of_two
-
-            inputs = [preprocess_fft(fft, num_bins, truncating_point) for fft in inputs]
-            inputs = np.asarray(inputs)
-
-            label_encoder = LabelEncoder()
-            integer_outputs = label_encoder.fit_transform(outputs)
-
-            print(f'\n\nNumber of bins: {num_bins}')
-            print(f'Shape of input data: {inputs.shape}')
-            print(f'Shape of output data: {integer_outputs.shape}')
-
-            if event_type == 'severities':
-                inputs_contain_nans = np.isnan(inputs).any()
-                if inputs_contain_nans:
-                    print('Input data contains nan values, removing now...')
-                    inputs, integer_outputs = remove_nan_values_from_dataset(inputs, integer_outputs)
-                else:
-                    print('Input data does not contain nan values, all good!')
-                print_class_balance(inputs, integer_outputs)
-
-
-            num_trials = 1
-            all_results = {
-                "Accuracy": [],
-                "Macro Precision": [],
-                "Macro Recall": [],
-                "Macro F1 Score": [],
-                "Weighted F1 Score": [],
-            }
-
-            for i in range(num_trials):
-                trial_results = cross_validation(model, inputs, integer_outputs)
-
-                for metric_name, metric_value in trial_results.items():
-                    all_results[metric_name].append(metric_value)
-
-
-            average_results = {}
-            for metric_name, metric_values in all_results.items():
-                average_metric_value = sum(metric_values) / len(metric_values)
-                average_results[metric_name] = average_metric_value
-        
-            results_for_all_bins[str(num_bins)] = average_results
-            print(results_for_all_bins)
-
-        
-        with open(f'{model_type}.csv', 'w', encoding='UTF8', newline='') as f:
-            writer = csv.writer(f)
-            header = [model_type]
-            writer.writerow(header)
-
-            for metric_name in all_results.keys():
-                metric_for_all_bins = []
-                metric_for_all_bins.append(metric_name)
-                for bin_num, metrics in results_for_all_bins.items():
-                    metric_for_all_bins.append(round(metrics[metric_name], 3))
-
-                print(metric_for_all_bins)
-                writer.writerow(metric_for_all_bins)
-
 
     else:
-        raise ValueError("Invalid FE method chosen, choose between ['RAW', 'FFT']")
-    
+        raise ValueError("Invalid FE method chosen, CNNs are used only for STFT")
+
+
+    if event_type == 'severities':
+        inputs_contain_nans = np.isnan(inputs).any()
+        if inputs_contain_nans:
+            print('Input data contains nan values, removing now...')
+            inputs, outputs = remove_nan_values_from_dataset(inputs, outputs)
+        else:
+            print('Input data does not contain nan values, all good!')
+        print_class_balance(inputs, outputs)
+
+
+    learning_rate = 5e-4
+    epochs = 200
+    batch_size = 32
+    num_folds = 5
+
+    # create instance of KFold class for K-Fold cross validation and define a counter for the fold
+    k_fold = StratifiedKFold(n_splits=num_folds, shuffle=True)
+
+    # create instance of EarlyStopping callback for training the model
+    early_stop = EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
+
+
+    #start timer to time the training process
+    start_time = time.time()
+    model_histories = []
+    cross_val_losses = []
+    cross_val_accuracies = []
+    cross_val_precisions = []
+    cross_val_recalls = []
+    cross_val_macro_f1s = []
+    cross_val_weighted_f1s = []
+    fold_counter = 1
+    gc.collect()
+
+
+    # split inputs and output using K-Fold cross validation and
+    # train the model using the resulting training and validation sets
+    for train_index, validation_index in k_fold.split(inputs, outputs):
+
+        X_train, y_train, X_val, y_val = get_train_and_val_data(inputs,
+                                                                outputs,
+                                                                num_of_classes,
+                                                                train_index, 
+                                                                validation_index)
+
+        model = create_and_compile_model(input_shape=X_train[0].shape,
+                                        output_dim=num_of_classes,
+                                        learning_rate=learning_rate)
+
+        if fold_counter == 1:
+            print('* Creating and compiling model...')
+            model.summary()
+            print('* Done creating and compiling model! \n')
+            print(f'X_train shape: {X_train.shape}')
+            print(f'y_train shape: {y_train.shape}')
+            print(f'X_val shape: {X_val.shape}')
+            print(f'y_val shape: {y_val.shape} \n')
+
+        # get_binary_class_occurrences(y_train, y_val)
+
+        print(f'* Training and evaluating model over fold {fold_counter}...')
+        history, fold_val_loss, fold_val_acc = train_and_evaluate_model(model,
+                                                    X_train, y_train,
+                                                    X_val, y_val,
+                                                    batch_size,
+                                                    epochs,
+                                                    [early_stop],
+                                                    evaluate_on_test_set=True,
+                                                    x_test=X_val, y_test=y_val)
+
+        y_pred = model.predict(X_val, verbose=0)
+        y_pred_bool = np.argmax(y_pred, axis=1)
+        y_true = y_val
+        precision, recall, macro_f1_score, _ = get_metrics(y_true, y_pred_bool, average='macro')
+        _, _, weighted_f1_score, _ = get_metrics(y_true, y_pred_bool, average='weighted')
+        print(f'\nPerformance metrics for fold {fold_counter}')
+        print(f'\taccuracy: {fold_val_acc}')
+        # print(f'\tloss: {fold_val_loss}')
+        print(f'\tprecision: {precision}')
+        print(f'\trecall: {recall}')
+        print(f'\tmacro_f1_score: {macro_f1_score}')
+        print(f'\tweighted_f1_score: {weighted_f1_score}')
+
+        # print(classification_report(y_true, y_pred_bool))
+
+        cross_val_losses.append(fold_val_loss)
+        cross_val_accuracies.append(fold_val_acc)
+        cross_val_precisions.append(precision)
+        cross_val_recalls.append(recall)
+        cross_val_macro_f1s.append(macro_f1_score)
+        cross_val_weighted_f1s.append(weighted_f1_score)
+
+        model_histories.append(history)
+        fold_counter = fold_counter + 1
+        print('* Done training and evaluating model! \n')
+
+        gc.collect()
+
+
     end_time = time.time()
     print(f'Model training took {end_time - start_time} seconds')
+
+    average_cross_val_loss = sum(cross_val_losses) / len(cross_val_losses)
+    average_cross_val_acc = sum(cross_val_accuracies) / len(cross_val_accuracies)
+    average_cross_val_precision = sum(cross_val_precisions) / len(cross_val_precisions)
+    average_cross_val_recall = sum(cross_val_recalls) / len(cross_val_recalls)
+    average_cross_val_macro_f1 = sum(cross_val_macro_f1s) / len(cross_val_macro_f1s)
+    average_cross_val_weighted_f1 = sum(cross_val_weighted_f1s) / len(cross_val_weighted_f1s)
+
+    # print(f'\n\nAverage validation loss over {num_folds} folds: {average_cross_val_loss}')
+    print(f'\n\nAverage validation accuracy over {num_folds} folds: {average_cross_val_acc}')
+    print(f'Average validation precision over {num_folds} folds: {average_cross_val_precision}')
+    print(f'Average validation recall over {num_folds} folds: {average_cross_val_recall}')
+    print(f'Average validation macro-F1 score over {num_folds} folds: {average_cross_val_macro_f1}')
+    print(f'Average validation weighted-F1 score over {num_folds} folds: {average_cross_val_weighted_f1}')
+
+    plot_model_histories(model_histories)
