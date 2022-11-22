@@ -9,6 +9,8 @@ In different pages of the [Wiki](https://github.com/vasilismanginas/dengue-sever
 * [Use of pickles as checkpoints](https://github.com/vasilismanginas/dengue-severity-classification/wiki/Use-of-pickles-as-checkpoints)
 
 
+**IMPORTANT:** Due to time constraints of the project the ```baseline-models``` branch was never merged into ```main```. For this reason, ```main``` currently utilizes only CNN models, while the remaining machine learning models (decision tree, random forest, SVM, and MLP models) are implemented only in the ```baseline-models``` branch.
+
 ## How to Run:
 
 ### Requirements:
