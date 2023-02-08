@@ -1,25 +1,22 @@
-# Final Year Project
+# Model Development for Severity Classification of Dengue Patients using Photoplethysmography (PPG) Data
 
-## How to run:
+## Project Aim:
+The broader scope of this project is to assist in the management of dengue patients. This work aims to be one of the primary steps in showing that providing such assistance via the use of wearable PPG sensors is possible. This is achieved by investigating whether a patient's PPG signal can be used as an indicator of the severity of their dengue infection.
+
+In different pages of the [Wiki](https://github.com/vasilismanginas/dengue-severity-classification/wiki) you can find more information on:
+* [Repository structure](https://github.com/vasilismanginas/dengue-severity-classification/wiki/Repository-structure)
+* [General pipeline operation, execution flow, and pipeline blocks](https://github.com/vasilismanginas/dengue-severity-classification/wiki/General-execution-flow-and-pipeline-blocks)
+* [Use of pickles as checkpoints](https://github.com/vasilismanginas/dengue-severity-classification/wiki/Use-of-pickles-as-checkpoints)
+
+
+**IMPORTANT:** Due to time constraints of the project the ```baseline-models``` branch was never merged into ```main```. For this reason, ```main``` currently utilizes only CNN models, while the remaining machine learning models (decision tree, random forest, SVM, and MLP models) are implemented only in the ```baseline-models``` branch.
+
+## How to Run:
 
 ### Requirements:
-- **If you use conda:** Running the command below will create a new conda environment with the name `env_name` which replicates the environment specified in the `conda_environment.yml` file.
-
-    ```
-    conda env create --name <env_name> -f conda_environment.yml
-    ```
-
-- **Alternatively, if you don't use conda, and use pip:** Running the command below will install all packages specified in the `requirements_pip.txt` file.
-
-    ```
-    pip install -r requirements_pip.txt
-    ```
-
-    ***WARNING:*** The pip version might potentially not include all dependencies but is sufficient for creating a functional environment, after which you can use `pip install <package_name>` for any package that might be missing.
+See the [Wiki page on Requirements](https://github.com/vasilismanginas/dengue-severity-classification/wiki/Requirements).
 
 ### Running the code:
 Run the `main_controller.py` file. This includes the definition of important parameters for all pipeline stages and subsequently runs each pipeline stage sequentially.
 
 ***IMPORTANT:*** You have to change the path at which the dataset is located on your machine. This should be stored in the `base_path` variable created in the beginning of the main of the file.
-
-For more information on the repository structure, and how the pipeline and pickles operate, please visit the [Wiki](https://github.com/vasilismanginas/dengue-severity-classification/wiki).
