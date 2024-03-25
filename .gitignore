@@ -1,1 +1,3 @@
 *.pyc
+data_pickles_before/
+.vscode/

@@ -87,8 +87,8 @@ def cross_validation(model, _X, _y, _cv=5):
                             cv=_cv,
                             scoring=_scoring,
                             return_train_score=False,
-                            n_jobs=8,
-                            verbose=2)
+                            n_jobs=-1,
+                            verbose=1)
 
     return {"Accuracy": results['test_accuracy'].mean(),
             "Macro Precision": results['test_precision_macro'].mean(),
